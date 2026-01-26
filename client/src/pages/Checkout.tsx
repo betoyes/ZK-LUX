@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'wouter';
 import { maskCep, isValidCep, calculateShipping, formatCurrency, type ShippingResult } from '@/lib/cep';
 import { WhatsAppLink } from '@/components/WhatsAppButton';
+import { useProducts } from '@/context/ProductContext';
 
 const customerSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -110,8 +111,31 @@ export default function Checkout() {
   const [paymentConfig, setPaymentConfig] = useState<{ configured: boolean; sandbox: boolean } | null>(null);
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const { toast } = useToast();
+  const { cart, products } = useProducts();
 
-  const subtotal = 1630000;
+  const cartItems = useMemo(() => {
+    return cart.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      if (!product) return null;
+      return {
+        ...item,
+        product,
+        price: product.price,
+        name: product.name,
+      };
+    }).filter(Boolean) as Array<{
+      productId: number;
+      quantity: number;
+      stoneType?: string;
+      product: typeof products[0];
+      price: number;
+      name: string;
+    }>;
+  }, [cart, products]);
+
+  const subtotal = useMemo(() => {
+    return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  }, [cartItems]);
   
   const customerForm = useForm<CustomerData>({
     resolver: zodResolver(customerSchema),
@@ -674,14 +698,16 @@ export default function Checkout() {
               <div className="bg-secondary/20 p-8 sticky top-32">
                 <h3 className="font-serif text-lg mb-6">Resumo</h3>
                 <div className="space-y-4 text-sm border-b border-border pb-6 mb-6">
-                  <div className="flex justify-between">
-                    <span>Anel Solitário Royal</span>
-                    <span>R$ 12.500,00</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Brincos Pérola Barroca</span>
-                    <span>R$ 3.800,00</span>
-                  </div>
+                  {cartItems.length > 0 ? (
+                    cartItems.map((item, index) => (
+                      <div key={`${item.productId}-${item.stoneType || ''}-${index}`} className="flex justify-between" data-testid={`cart-item-${item.productId}`}>
+                        <span>{item.name}{item.quantity > 1 ? ` (x${item.quantity})` : ''}</span>
+                        <span>{formatCurrency(item.price * item.quantity)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-center">Carrinho vazio</p>
+                  )}
                 </div>
                 
                 <div className="space-y-3 text-sm border-b border-border pb-6 mb-6">
@@ -995,14 +1021,16 @@ export default function Checkout() {
              <div className="bg-secondary/20 p-8 sticky top-32">
               <h3 className="font-serif text-lg mb-6">Resumo</h3>
               <div className="space-y-4 text-sm border-b border-border pb-6 mb-6">
-                <div className="flex justify-between">
-                  <span>Anel Solitário Royal</span>
-                  <span>R$ 12.500,00</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Brincos Pérola Barroca</span>
-                  <span>R$ 3.800,00</span>
-                </div>
+                {cartItems.length > 0 ? (
+                  cartItems.map((item, index) => (
+                    <div key={`${item.productId}-${item.stoneType || ''}-${index}`} className="flex justify-between" data-testid={`cart-item-${item.productId}`}>
+                      <span>{item.name}{item.quantity > 1 ? ` (x${item.quantity})` : ''}</span>
+                      <span>{formatCurrency(item.price * item.quantity)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-center">Carrinho vazio</p>
+                )}
               </div>
               
               <div className="space-y-3 text-sm border-b border-border pb-6 mb-6">
