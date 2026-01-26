@@ -262,7 +262,7 @@ export default function Shop() {
                 {/* Separator */}
                 <div className="border-b border-border my-2" />
                 
-                {visibleCategories.map(cat => (
+                {visibleCategories.filter(cat => cat.slug !== 'noivas' && cat.name?.toLowerCase() !== 'noivas').map(cat => (
                   <div key={cat.id} className="flex items-center space-x-3">
                     <Checkbox 
                       id={`cat-${cat.id}`} 
