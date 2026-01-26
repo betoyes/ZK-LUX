@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useRoute, Link, useSearch } from 'wouter';
+import { useRoute, Link, useSearch, useLocation } from 'wouter';
 import { useProducts } from '@/context/ProductContext';
 import { Button } from '@/components/ui/button';
 import { SEO, ProductSchema } from '@/components/SEO';
@@ -29,6 +29,7 @@ export default function Product() {
   
   const { products, categories, collections, addToCart } = useProducts();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [mainImage, setMainImage] = useState('');
   const [selectedVersion, setSelectedVersion] = useState(1);
   const [selectedStoneType, setSelectedStoneType] = useState(stoneFromUrl || 'main');
@@ -142,6 +143,11 @@ export default function Product() {
       title: "Adicionado à Sacola",
       description: `${product.name} foi adicionado à sua sacola.`,
     });
+  };
+
+  const handleBuyNow = () => {
+    addToCart(product.id, 1, selectedStoneType);
+    navigate('/checkout');
   };
 
   // Get related products (same category, excluding current)
@@ -323,15 +329,15 @@ export default function Product() {
                 >
                   <span>Adicionar à Sacola</span>
                 </Button>
-                <Link href="/checkout">
-                  <Button 
-                    size="lg" 
-                    className="w-full rounded-none h-16 bg-black text-white hover:bg-primary font-mono text-xs uppercase tracking-widest flex items-center justify-between px-8"
-                  >
-                    <span>Comprar Agora</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
+                <Button 
+                  size="lg" 
+                  className="w-full rounded-none h-16 bg-black text-white hover:bg-primary font-mono text-xs uppercase tracking-widest flex items-center justify-between px-8"
+                  onClick={handleBuyNow}
+                  data-testid="button-buy-now"
+                >
+                  <span>Comprar Agora</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </div>
               
               {/* Ring Size Guide Button - Only for rings */}
