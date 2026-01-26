@@ -10,6 +10,7 @@ import { useProducts } from '@/context/ProductContext';
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [location, setLocation] = useLocation();
   const { wishlist, branding, getCartCount } = useProducts();
@@ -103,7 +104,7 @@ export function Navbar() {
               
               {/* Mobile Menu */}
               <div className="md:hidden">
-                <Sheet>
+                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                   <SheetTrigger asChild>
                     <Button variant="ghost" size="icon" className="text-current p-0 hover:bg-transparent">
                       <Menu className="h-6 w-6" />
@@ -125,7 +126,12 @@ export function Navbar() {
                         ].map((item) => {
                           const isActive = location === item.href || (item.href === '/shop' && location.startsWith('/shop'));
                           return (
-                            <Link key={item.name} href={item.href} className={`block font-display text-5xl md:text-6xl font-medium hover:text-white/50 transition-colors tracking-tighter ${isActive ? 'underline underline-offset-8' : ''}`}>
+                            <Link
+                              key={item.name}
+                              href={item.href}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className={`block font-display text-5xl md:text-6xl font-medium hover:text-white/50 transition-colors tracking-tighter ${isActive ? 'underline underline-offset-8' : ''}`}
+                            >
                               {item.name}
                             </Link>
                           );
