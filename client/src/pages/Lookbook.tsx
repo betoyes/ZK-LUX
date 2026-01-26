@@ -53,12 +53,16 @@ function renderMedia(url: string | null | undefined, fallbackUrl: string, mediaT
 }
 
 export default function Lookbook() {
-  const { collections, branding } = useProducts();
+  const { collections, products, branding } = useProducts();
   const ref = useRef(null);
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end end"]
   });
+
+  const getCollectionImage = (collectionId: number, fallback?: string | null) => {
+    return products.find((product) => product.collectionId === collectionId && product.image)?.image || fallback;
+  };
 
   return (
     <div ref={ref} className="bg-black text-white">
@@ -106,7 +110,7 @@ export default function Lookbook() {
               className={`order-1 ${i % 2 === 0 ? 'md:order-2' : 'md:order-1'} aspect-[3/4] relative`}
             >
               <img 
-                src={collection.image} 
+                src={getCollectionImage(collection.id, collection.image)} 
                 alt={collection.name} 
                 className="w-full h-full object-cover grayscale transition-all duration-1000"
               />

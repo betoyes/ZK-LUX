@@ -132,7 +132,7 @@ export default function Product() {
     return (
       <div className="min-h-screen flex items-center justify-center flex-col gap-4 bg-background text-foreground">
         <h1 className="font-display text-2xl">Artefato Não Encontrado</h1>
-        <Link href="/shop"><Button variant="outline">Voltar ao Arquivo</Button></Link>
+        <Link href="/shop"><Button variant="outline">Voltar a Loja</Button></Link>
       </div>
     );
   }
@@ -194,7 +194,7 @@ export default function Product() {
       <div className="container mx-auto px-6 md:px-12">
         <div className="mb-12">
            <Link href="/shop" className="group inline-flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft className="h-3 w-3 group-hover:-translate-x-1 transition-transform" /> Voltar ao Arquivo
+              <ArrowLeft className="h-3 w-3 group-hover:-translate-x-1 transition-transform" /> Voltar a Loja
            </Link>
         </div>
 

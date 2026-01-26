@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, products as initialProducts, Category, categories as initialCategories, Collection, collections as initialCollections, Branding, initialBranding, JournalPost, initialPosts } from '@/lib/mockData';
-import ringImage from '@assets/generated_images/diamond_ring_product_shot.png';
+import ringImage from '@assets/generated_images/diamond_ring_product_shot.webp';
 
 export interface CartItem {
   productId: number;

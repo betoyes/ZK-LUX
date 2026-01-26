@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useProducts } from '@/context/ProductContext';
 import StoneSelector, { hasStoneVariations, getStonePrice } from '@/components/StoneSelector';
-import heroImage from '@assets/generated_images/luxury_jewelry_hero_image_with_model.png';
-import necklaceImage from '@assets/generated_images/gold_necklace_product_shot.png';
+import heroImage from '@assets/generated_images/luxury_jewelry_hero_image_with_model.webp';
+import necklaceImage from '@assets/generated_images/gold_necklace_product_shot.webp';
 import campaignVideo from '@assets/generated_videos/b&w_jewelry_fashion_b-roll.mp4';
 import { useToast } from '@/hooks/use-toast';
 

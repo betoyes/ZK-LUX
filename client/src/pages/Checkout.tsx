@@ -538,7 +538,7 @@ export default function Checkout() {
     return (
       <div className="min-h-screen bg-background pt-32 pb-24">
         <div className="container mx-auto px-4 max-w-4xl">
-          <h1 className="font-serif text-3xl mb-12 text-center">Escolha a forma de pagamento</h1>
+          <h1 className="font-serif text-3xl mb-12 text-center">Pagamento Seguro</h1>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             <div className="md:col-span-2">
@@ -690,17 +690,16 @@ export default function Checkout() {
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => {
                           const total = subtotal + (shipping?.price || 0);
                           const { installmentValue, totalWithInterest } = calculateInstallmentWithInterest(total, n);
-                          const interestAmount = totalWithInterest - total;
                           return (
                             <option key={n} value={n}>
-                              {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : `(Total: ${formatCurrency(totalWithInterest)})`}
+                              {n}x de {formatCurrency(installmentValue)}
                             </option>
                           );
                         })}
                       </select>
                       {installments > 1 && (
                         <p className="text-xs text-muted-foreground mt-2">
-                          Taxa de {(MONTHLY_INTEREST_RATE * 100).toFixed(2)}% a.m. - Total: {formatCurrency(calculateInstallmentWithInterest(subtotal + (shipping?.price || 0), installments).totalWithInterest)}
+                          Taxa de {(MONTHLY_INTEREST_RATE * 100).toFixed(2)}% a.m.
                         </p>
                       )}
                     </div>

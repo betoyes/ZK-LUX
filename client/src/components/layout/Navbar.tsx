@@ -91,7 +91,7 @@ export function Navbar() {
 
               <Link href="/cart">
                 <button className="hover:opacity-70 transition-opacity font-mono text-sm flex items-center gap-2" data-testid="nav-cart-link">
-                  SACOLA ({getCartCount()})
+                  MY BAG ({getCartCount()})
                 </button>
               </Link>
 
