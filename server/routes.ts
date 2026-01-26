@@ -2143,7 +2143,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
 
   // Sandbox: Simulate payment confirmation (only in sandbox mode)
-  app.post("/api/payments/:paymentId/simulate-payment", async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/payments/:paymentId/simulate-payment", paymentLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!asaas.isSandboxMode()) {
         return res.status(403).json({ message: "Esta função só está disponível em ambiente Sandbox" });
@@ -2154,7 +2154,7 @@ Sitemap: ${baseUrl}/sitemap.xml
         return res.status(404).json({ message: "Pagamento não encontrado" });
       }
 
-      // Confirm payment in sandbox
+      // Confirm payment in sandbox (returns simulated confirmed status)
       const asaasPayment = await asaas.confirmSandboxPayment(localPayment.asaasPaymentId);
 
       // Update local status

@@ -28,10 +28,22 @@ const customerSchema = z.object({
 });
 
 const creditCardSchema = z.object({
-  cardNumber: z.string().min(13, "Número do cartão inválido"),
+  cardNumber: z.string().min(13, "Número do cartão inválido").max(19, "Número do cartão inválido"),
   holderName: z.string().min(2, "Nome no cartão é obrigatório"),
-  expiry: z.string().min(5, "Data inválida"),
-  cvc: z.string().min(3, "CVC inválido"),
+  expiry: z.string()
+    .regex(/^(0[1-9]|1[0-2])\/\d{2}$/, "Data inválida (formato: MM/AA)")
+    .refine((val) => {
+      const [month, year] = val.split('/');
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear() % 100;
+      const currentMonth = currentDate.getMonth() + 1;
+      const expiryYear = parseInt(year, 10);
+      const expiryMonth = parseInt(month, 10);
+      if (expiryYear < currentYear) return false;
+      if (expiryYear === currentYear && expiryMonth < currentMonth) return false;
+      return true;
+    }, "Cartão expirado"),
+  cvc: z.string().min(3, "CVC inválido").max(4, "CVC inválido").regex(/^\d{3,4}$/, "CVC inválido"),
 });
 
 type CustomerData = z.infer<typeof customerSchema>;
