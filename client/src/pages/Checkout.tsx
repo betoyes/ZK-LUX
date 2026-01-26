@@ -110,6 +110,7 @@ export default function Checkout() {
   const [copiedPayload, setCopiedPayload] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<{ configured: boolean; sandbox: boolean } | null>(null);
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
+  const [installments, setInstallments] = useState(1);
   const { toast } = useToast();
   const { cart, products, clearCart } = useProducts();
 
@@ -295,6 +296,7 @@ export default function Checkout() {
             expiryYear: fullYear,
             ccv: cardData.cvc,
           },
+          installmentCount: installments,
         }),
       });
 
@@ -649,6 +651,25 @@ export default function Checkout() {
                           </FormItem>
                         )}
                       />
+                    </div>
+
+                    <div className="mt-6">
+                      <label className="block text-sm font-medium mb-2">Parcelas</label>
+                      <select
+                        value={installments}
+                        onChange={(e) => setInstallments(parseInt(e.target.value))}
+                        className="w-full h-10 px-3 border border-input bg-white rounded-md text-sm"
+                        data-testid="select-installments"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => {
+                          const installmentValue = (subtotal + (shipping?.price || 0)) / n;
+                          return (
+                            <option key={n} value={n}>
+                              {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : 'sem juros'}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
 
                     <Button 
