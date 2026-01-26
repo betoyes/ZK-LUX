@@ -164,7 +164,10 @@ export async function createCreditCardPayment(
 
   if (data.installmentCount && data.installmentCount > 1) {
     paymentData.installmentCount = data.installmentCount;
-    paymentData.installmentValue = (data.value / 100) / data.installmentCount;
+    // Se installmentValue foi passado (com juros), use-o; senão, divide sem juros
+    paymentData.installmentValue = data.installmentValue 
+      ? data.installmentValue / 100  // Frontend envia em centavos
+      : (data.value / 100) / data.installmentCount;
   }
 
   const payment = await asaasRequest('/payments', {

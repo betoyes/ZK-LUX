@@ -358,5 +358,6 @@ export const createCreditCardPaymentSchema = z.object({
     ccv: z.string().min(3, "CVC inválido"),
   }),
   installmentCount: z.number().min(1).max(12).optional(),
+  installmentValue: z.number().positive().optional(), // Valor de cada parcela em centavos (com juros)
 });
 export type CreateCreditCardPayment = z.infer<typeof createCreditCardPaymentSchema>;

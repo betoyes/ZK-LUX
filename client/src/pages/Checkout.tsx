@@ -100,6 +100,29 @@ function maskExpiry(value: string): string {
   return digits;
 }
 
+// Taxa de juros mensal para parcelamento (2.99% ao mês - padrão do mercado)
+const MONTHLY_INTEREST_RATE = 0.0299;
+
+// Calcula o valor da parcela usando a Tabela Price (juros compostos)
+function calculateInstallmentWithInterest(principal: number, installments: number): { installmentValue: number; totalWithInterest: number } {
+  if (installments === 1) {
+    return { installmentValue: principal, totalWithInterest: principal };
+  }
+  
+  const r = MONTHLY_INTEREST_RATE;
+  const n = installments;
+  
+  // Fórmula da Tabela Price: PMT = PV × [r × (1 + r)^n] / [(1 + r)^n - 1]
+  const factor = Math.pow(1 + r, n);
+  const installmentValue = principal * (r * factor) / (factor - 1);
+  const totalWithInterest = installmentValue * n;
+  
+  return { 
+    installmentValue: Math.round(installmentValue), // Arredonda para centavos inteiros
+    totalWithInterest: Math.round(totalWithInterest)
+  };
+}
+
 export default function Checkout() {
   const [step, setStep] = useState<CheckoutStep>('info');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit_card');
@@ -297,6 +320,9 @@ export default function Checkout() {
             ccv: cardData.cvc,
           },
           installmentCount: installments,
+          installmentValue: installments > 1 
+            ? calculateInstallmentWithInterest(subtotal + shipping.price, installments).installmentValue 
+            : undefined,
         }),
       });
 
@@ -662,14 +688,21 @@ export default function Checkout() {
                         data-testid="select-installments"
                       >
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => {
-                          const installmentValue = (subtotal + (shipping?.price || 0)) / n;
+                          const total = subtotal + (shipping?.price || 0);
+                          const { installmentValue, totalWithInterest } = calculateInstallmentWithInterest(total, n);
+                          const interestAmount = totalWithInterest - total;
                           return (
                             <option key={n} value={n}>
-                              {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : 'sem juros'}
+                              {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : `(Total: ${formatCurrency(totalWithInterest)})`}
                             </option>
                           );
                         })}
                       </select>
+                      {installments > 1 && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Taxa de {(MONTHLY_INTEREST_RATE * 100).toFixed(2)}% a.m. - Total: {formatCurrency(calculateInstallmentWithInterest(subtotal + (shipping?.price || 0), installments).totalWithInterest)}
+                        </p>
+                      )}
                     </div>
 
                     <Button 
