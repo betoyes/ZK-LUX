@@ -1,35 +1,73 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Frontend UI Tests', () => {
-
-  test('Home page should load', async ({ page }) => {
+test.describe('Frontend UX Smoke (P0)', () => {
+  test('Home loads (no networkidle)', async ({ page }) => {
     await page.goto('/');
-    // Wait for app to hydrate
     await page.waitForLoadState('domcontentloaded');
-    
-    // Check if root exists
     await expect(page.locator('#root')).toBeVisible();
-
-    // Check title if SEO component is working, but make it optional or loose for now
-    // await expect(page).toHaveTitle(/ZK|Jewelry|Lux/i);
   });
 
-  test('Shop page should display products', async ({ page }) => {
-    await page.goto('/shop'); // Assuming /shop is the route based on file structure
-    // Check for product grid or list
-    // Based on codebase, maybe look for common elements
-    // We can just check if the URL is correct and no 404
-    await expect(page).toHaveURL(/.*shop/);
+  test('Shop shows product count', async ({ page }) => {
+    await page.goto('/shop');
+    await expect(page).toHaveURL(/\/shop/);
+    await expect(page.getByTestId('product-count')).toBeVisible();
   });
 
-  test('Navigation from Home to Shop', async ({ page }) => {
-    await page.goto('/');
-    // Click on a link that contains "Shop" or "Coleções" or "Loja"
-    // Since I don't know the exact text, I'll try a generic selector or href
-    // Looking at file list, there is 'Navbar.tsx', likely has links.
-    // Let's just verify the home page elements for now to be safe.
-    const body = page.locator('body');
-    await expect(body).toBeVisible();
+  test('Cart page renders and has checkout button', async ({ page }) => {
+    await page.goto('/cart');
+    await expect(page.getByTestId('checkout-btn')).toBeVisible();
+    await expect(page.getByTestId('continue-shopping-btn')).toBeVisible();
   });
 
+  test('Checkout blocks submit when shipping not calculated (CEP missing)', async ({ page }) => {
+    await page.goto('/checkout');
+
+    await page.getByTestId('input-email').fill('qa+test@zkrezk.com');
+    await page.getByTestId('input-firstname').fill('QA');
+    await page.getByTestId('input-lastname').fill('Lead');
+    await page.getByTestId('input-address').fill('Rua Teste 123');
+    await page.getByTestId('input-city').fill('São Paulo');
+
+    await page.getByTestId('input-cardnumber').fill('4111111111111111');
+    await page.getByTestId('input-expiry').fill('12/30');
+    await page.getByTestId('input-cvc').fill('123');
+
+    await page.getByTestId('button-submit-checkout').click();
+
+    // Como o submit deve ser bloqueado sem frete calculado, continuamos na rota /checkout
+    await expect(page).toHaveURL(/\/checkout/);
+  });
+
+  test('Checkout calculates shipping with valid CEP and updates totals', async ({ page }) => {
+    await page.goto('/checkout');
+
+    // Antes: deve estar pendente
+    await expect(page.getByTestId('text-shipping-pending')).toBeVisible();
+
+    // Captura subtotal e total antes, só para comparar depois
+    const subtotalBefore = (await page.getByTestId('text-subtotal').textContent())?.trim() || '';
+    const totalBefore = (await page.getByTestId('text-total').textContent())?.trim() || '';
+
+    // Dispara o cálculo (há debounce de ~500ms no código)
+    await page.getByTestId('input-cep').fill('01310-000');
+
+    // Resultado do frete deve aparecer
+    await expect(page.getByTestId('shipping-result')).toBeVisible();
+    await expect(page.getByTestId('text-shipping-price')).toBeVisible();
+    await expect(page.getByTestId('text-shipping-days')).toBeVisible();
+
+    // O "Informe o CEP" deve sumir e o valor de frete no resumo deve aparecer
+    await expect(page.getByTestId('text-shipping-pending')).toHaveCount(0);
+    await expect(page.getByTestId('text-summary-shipping')).toBeVisible();
+
+    // Total deve existir (e idealmente mudar vs antes)
+    const totalAfter = (await page.getByTestId('text-total').textContent())?.trim() || '';
+    expect(totalAfter.length).toBeGreaterThan(0);
+
+    // Se o frete não for zero, total normalmente muda
+    // (não travamos o teste em um valor exato para evitar flaky)
+    if (subtotalBefore && totalBefore) {
+      expect(totalAfter).not.toEqual(totalBefore);
+    }
+  });
 });
