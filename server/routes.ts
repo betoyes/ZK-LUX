@@ -1,3 +1,4 @@
+
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage, logAuditEvent } from "./storage";
@@ -6,6 +7,7 @@ import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { createCustomerIfNeeded, createPixPayment, getPixQrCode } from "./asaas";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { z } from "zod";
@@ -794,6 +796,49 @@ function invalidateProductsCache() {
   });
 
   // ============ CATEGORIES ROUTES ============
+
+  //Rotas de API ASAAS - 09/02/2026
+ 
+
+  app.post("/api/payments/pix", async (req, res, next) => {
+    try {
+      const { name, email, cpfCnpj, value, description, dueDate } = req.body ?? {};
+      const dueDateISO = dueDate ?? new Date().toISOString().slice(0, 10);
+
+      if (!name || !email) return res.status(400).json({ message: "name e email são obrigatórios" });
+      const numericValue = Number(value);
+      if (!numericValue || numericValue <= 0) return res.status(400).json({ message: "value inválido" });
+
+      if (!dueDate) return res.status(400).json({ message: "dueDate é obrigatório (YYYY-MM-DD)" });
+
+
+      // 1) cria customer no Asaas (para teste tá ok fazer sempre)
+      const customer = await createCustomerIfNeeded({ name, email, cpfCnpj });
+
+      // 2) cria cobrança PIX
+      const payment = await createPixPayment({
+        customer: customer.id,
+        value: numericValue,
+        description,
+        dueDate,
+      });
+
+
+      // 3) pega QR Code do PIX
+      const pix = await getPixQrCode(payment.id);
+
+      return res.json({
+        customerId: customer.id,
+        paymentId: payment.id,
+        invoiceUrl: payment.invoiceUrl,
+        status: payment.status,
+        pix, // geralmente vem encodedImage + payload
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+//-------------------------------------------------------------------
   
   app.get("/api/categories", async (req, res, next) => {
     try {
