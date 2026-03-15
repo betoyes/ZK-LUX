@@ -19,7 +19,7 @@ import {
   type AsaasPayment, type InsertAsaasPayment,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, isNotNull, asc, and, gt, gte } from "drizzle-orm";
+import { eq, desc, isNotNull, asc, and, gt, gte, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -220,6 +220,54 @@ export class DatabaseStorage implements IStorage {
   // Products
   async getProducts(): Promise<Product[]> {
     return await db.select().from(products);
+  }
+
+  async getProductsLightweight(): Promise<any[]> {
+    const rows = await db.select({
+      id: products.id,
+      name: products.name,
+      price: products.price,
+      description: products.description,
+      hasImage: sql<boolean>`${products.image} IS NOT NULL`.as('has_image'),
+      hasImageColor: sql<boolean>`${products.imageColor} IS NOT NULL`.as('has_image_color'),
+      hasVersion1: sql<boolean>`${products.version1} IS NOT NULL`.as('has_version1'),
+      hasVersion2: sql<boolean>`${products.version2} IS NOT NULL`.as('has_version2'),
+      hasVersion3: sql<boolean>`${products.version3} IS NOT NULL`.as('has_version3'),
+      hasVideo: sql<boolean>`${products.video} IS NOT NULL`.as('has_video'),
+      hasVideo2: sql<boolean>`${products.video2} IS NOT NULL`.as('has_video2'),
+      gallery: products.gallery,
+      categoryId: products.categoryId,
+      collectionId: products.collectionId,
+      specs: products.specs,
+      bestsellerOrder: products.bestsellerOrder,
+      isNew: products.isNew,
+      priceDiamondSynthetic: products.priceDiamondSynthetic,
+      priceZirconia: products.priceZirconia,
+      descriptionDiamondSynthetic: products.descriptionDiamondSynthetic,
+      descriptionZirconia: products.descriptionZirconia,
+      specsDiamondSynthetic: products.specsDiamondSynthetic,
+      specsZirconia: products.specsZirconia,
+      mainStoneName: products.mainStoneName,
+      stoneVariations: products.stoneVariations,
+      zoomLevel: products.zoomLevel,
+    }).from(products);
+    return rows.map(r => ({
+      ...r,
+      image: r.hasImage ? `/api/products/${r.id}/image` : null,
+      imageColor: r.hasImageColor ? `/api/products/${r.id}/image-color` : null,
+      version1: r.hasVersion1 ? `/api/products/${r.id}/version1` : null,
+      version2: r.hasVersion2 ? `/api/products/${r.id}/version2` : null,
+      version3: r.hasVersion3 ? `/api/products/${r.id}/version3` : null,
+      video: r.hasVideo ? true : null,
+      video2: r.hasVideo2 ? true : null,
+      hasImage: undefined,
+      hasImageColor: undefined,
+      hasVersion1: undefined,
+      hasVersion2: undefined,
+      hasVersion3: undefined,
+      hasVideo: undefined,
+      hasVideo2: undefined,
+    }));
   }
 
   async getProductById(id: number): Promise<Product | undefined> {

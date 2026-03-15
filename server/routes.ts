@@ -1154,34 +1154,47 @@ export async function registerRoutes(
       const { category, collection, bestsellers, new: isNew, full } = req.query;
 
       let products: any[] = [];
-      if (bestsellers === "true") {
-        products = await storage.getBestsellers();
-      } else if (isNew === "true") {
-        products = await storage.getNewProducts();
-      } else if (category) {
-        const cat = await storage.getCategoryBySlug(category as string);
-        if (cat) {
-          products = await storage.getProductsByCategory(cat.id);
+      
+      if (full === "true") {
+        if (bestsellers === "true") {
+          products = await storage.getBestsellers();
+        } else if (isNew === "true") {
+          products = await storage.getNewProducts();
+        } else if (category) {
+          const cat = await storage.getCategoryBySlug(category as string);
+          if (cat) {
+            products = await storage.getProductsByCategory(cat.id);
+          } else {
+            products = [];
+          }
+        } else if (collection) {
+          const col = await storage.getCollectionBySlug(collection as string);
+          if (col) {
+            products = await storage.getProductsByCollection(col.id);
+          } else {
+            products = [];
+          }
         } else {
-          products = [];
+          products = await storage.getProducts();
         }
-      } else if (collection) {
-        const col = await storage.getCollectionBySlug(collection as string);
-        if (col) {
-          products = await storage.getProductsByCollection(col.id);
-        } else {
-          products = [];
-        }
+        res.json(products);
       } else {
-        products = await storage.getProducts();
+        const allProducts = await storage.getProductsLightweight();
+        if (bestsellers === "true") {
+          products = allProducts.filter((p: any) => p.bestsellerOrder != null).sort((a: any, b: any) => (a.bestsellerOrder || 0) - (b.bestsellerOrder || 0));
+        } else if (isNew === "true") {
+          products = allProducts.filter((p: any) => p.isNew);
+        } else if (category) {
+          const cat = await storage.getCategoryBySlug(category as string);
+          products = cat ? allProducts.filter((p: any) => p.categoryId === cat.id) : [];
+        } else if (collection) {
+          const col = await storage.getCollectionBySlug(collection as string);
+          products = col ? allProducts.filter((p: any) => p.collectionId === col.id) : [];
+        } else {
+          products = allProducts;
+        }
+        res.json(products);
       }
-
-      // Strip base64 images to reduce payload size (unless full=true is requested)
-      if (full !== "true") {
-        products = stripBase64Images(products);
-      }
-
-      res.json(products);
     } catch (err) {
       next(err);
     }
