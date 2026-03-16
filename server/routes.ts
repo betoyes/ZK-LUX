@@ -31,6 +31,7 @@ import {
   sendPasswordResetEmail,
   sendAdminNotification,
   sendVerificationEmail,
+  sendOrderConfirmationEmail,
 } from "./email";
 import { validatePassword, isPasswordValid } from "../shared/passwordStrength";
 import * as asaas from "./asaas";
@@ -2440,6 +2441,124 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.send(xml);
     } catch (err) {
       next(err);
+    }
+  });
+
+  // ============ ASAAS WEBHOOK ============
+  // Webhook URL for ASAAS configuration: https://www.zkrezk.com/api/webhooks/asaas
+  // Events to configure: PAYMENT_CONFIRMED, PAYMENT_RECEIVED
+  // Token: set ASAAS_WEBHOOK_TOKEN in Replit Secrets with a secure random string (e.g. uuid v4),
+  //        then configure the same value in the ASAAS webhook panel under "asaas-access-token" header.
+
+  app.post("/api/webhooks/asaas", async (req: Request, res: Response) => {
+    try {
+      const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN;
+      const headerToken = req.headers["asaas-access-token"] as string | undefined;
+      const isProduction = process.env.NODE_ENV === "production";
+
+      if (webhookToken) {
+        if (headerToken !== webhookToken) {
+          console.error("[Webhook ASAAS] Invalid token received — rejecting");
+          return res.status(200).json({ received: true, unauthorized: true });
+        }
+      } else if (isProduction) {
+        console.error("[Webhook ASAAS] ASAAS_WEBHOOK_TOKEN not configured in production — rejecting for security");
+        return res.status(200).json({ received: true, unauthorized: true });
+      } else {
+        console.warn("[Webhook ASAAS] ASAAS_WEBHOOK_TOKEN not configured — processing without auth (dev mode)");
+      }
+
+      const { event, payment } = req.body || {};
+      console.log(`[Webhook ASAAS] Event received: ${event}, paymentId: ${payment?.id}, status: ${payment?.status}`);
+
+      const processableEvents = ["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"];
+      if (!processableEvents.includes(event)) {
+        return res.status(200).json({ received: true, ignored: true });
+      }
+
+      const asaasPaymentId = payment?.id;
+      if (!asaasPaymentId) {
+        console.warn("[Webhook ASAAS] No payment ID in webhook body");
+        return res.status(200).json({ received: true });
+      }
+
+      const localPayment = await storage.getAsaasPaymentByAsaasId(asaasPaymentId);
+      if (!localPayment) {
+        console.log(`[Webhook ASAAS] Payment ${asaasPaymentId} not found locally — ignoring`);
+        return res.status(200).json({ received: true });
+      }
+
+      const alreadyProcessed = ["CONFIRMED", "RECEIVED"].includes(localPayment.status);
+      if (alreadyProcessed) {
+        console.log(`[Webhook ASAAS] Payment ${asaasPaymentId} already processed (status: ${localPayment.status}) — skipping`);
+        return res.status(200).json({ received: true, alreadyProcessed: true });
+      }
+
+      const newStatus = event === "PAYMENT_RECEIVED" ? "RECEIVED" : "CONFIRMED";
+      const paymentDate = payment.paymentDate || new Date().toISOString().split("T")[0];
+
+      let order = await storage.getOrderByPaymentId(localPayment.id);
+
+      if (order) {
+        await storage.updateOrder(order.id, { status: "confirmed" });
+        console.log(`[Webhook ASAAS] Order ${order.orderId} updated to confirmed`);
+      } else {
+        const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+        const orderId = `ZK-${Date.now()}-${randomSuffix}`;
+
+        let customerName = "Cliente";
+        const asaasCustomer = localPayment.asaasCustomerId
+          ? await storage.getAsaasCustomerById(localPayment.asaasCustomerId)
+          : null;
+        if (asaasCustomer) {
+          customerName = asaasCustomer.name;
+        }
+
+        order = await storage.createOrder({
+          orderId,
+          userId: localPayment.userId,
+          customer: customerName,
+          date: new Date().toISOString(),
+          status: "confirmed",
+          total: localPayment.value,
+          items: 1,
+          paymentId: localPayment.id,
+        });
+        console.log(`[Webhook ASAAS] Order ${orderId} created as confirmed`);
+      }
+
+      await storage.updateAsaasPayment(localPayment.id, {
+        status: newStatus,
+        paymentDate,
+      });
+      console.log(`[Webhook ASAAS] Payment ${asaasPaymentId} updated to ${newStatus}`);
+
+      let customerEmail: string | null = null;
+      let customerNameForEmail = "Cliente";
+      if (localPayment.asaasCustomerId) {
+        const asaasCustomer = await storage.getAsaasCustomerById(localPayment.asaasCustomerId);
+        if (asaasCustomer) {
+          customerEmail = asaasCustomer.email;
+          customerNameForEmail = asaasCustomer.name;
+        }
+      }
+
+      if (customerEmail && order) {
+        sendOrderConfirmationEmail({
+          customerEmail,
+          customerName: customerNameForEmail,
+          orderId: order.orderId,
+          items: order.items,
+          total: localPayment.value,
+          billingType: localPayment.billingType,
+          paymentDate,
+        }).catch((err) => console.error("[Webhook ASAAS] Failed to send confirmation email:", err));
+      }
+
+      return res.status(200).json({ received: true });
+    } catch (err) {
+      console.error("[Webhook ASAAS] Internal error processing webhook:", err);
+      return res.status(200).json({ received: true, error: true });
     }
   });
 

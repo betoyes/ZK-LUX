@@ -1,0 +1,173 @@
+Preciso implementar o Webhook do ASAAS para processar pagamentos
+automaticamente. Este é o Prompt 3 de 4. NÃO altere nada além
+do descrito aqui.
+
+---
+
+CONTEXTO DO PROJETO:
+- Stack: TypeScript, Node.js, Express, Drizzle ORM, PostgreSQL
+- Pagamentos: ASAAS (atualmente em Sandbox)
+- Arquivos principais: server/routes.ts, server/storage.ts,
+  server/asaas.ts, server/email.ts
+- A tabela asaas_payments já existe com campos:
+  id, asaas_customer_id, asaas_payment_id, billing_type,
+  value, status, user_id (adicionado no Prompt 2)
+- A tabela orders já existe com campos:
+  id, order_id, user_id, status, total, customer, items,
+  date, created_at
+
+---
+
+PROBLEMA A RESOLVER:
+Atualmente o sistema só confirma pagamentos quando o cliente
+clica "Já paguei — Verificar" na tela. Se o cliente fechar
+a aba após pagar, o pagamento existe no ASAAS mas o sistema
+nunca processa a confirmação. O Webhook resolve isso.
+
+---
+
+TAREFA 1 — Criar variável de ambiente para o token do Webhook
+No arquivo server/routes.ts ou server/asaas.ts, usar a variável:
+  process.env.ASAAS_WEBHOOK_TOKEN
+Esta variável será configurada nos Secrets do Replit.
+NÃO hardcodar nenhum valor — apenas referenciar a env var.
+
+---
+
+TAREFA 2 — Criar endpoint do Webhook
+No arquivo server/routes.ts, adicionar ANTES de todas as
+outras rotas (para garantir que o body raw chegue corretamente):
+
+Endpoint: POST /api/webhooks/asaas
+
+Comportamento:
+1. Validar o token de autenticação no header:
+   header: asaas-access-token
+   Comparar com process.env.ASAAS_WEBHOOK_TOKEN
+   Se não bater: retornar 401 imediatamente
+   Se ASAAS_WEBHOOK_TOKEN não estiver configurado:
+   logar aviso mas processar mesmo assim (ambiente dev)
+
+2. Extrair do body:
+   - event: string (ex: "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED")
+   - payment.id: string (asaasPaymentId)
+   - payment.status: string
+   - payment.paymentDate: string (pode ser null)
+
+3. Processar apenas os eventos:
+   - PAYMENT_CONFIRMED
+   - PAYMENT_RECEIVED
+   Ignorar todos os outros eventos silenciosamente
+   (retornar 200 para não interromper a fila do ASAAS)
+
+4. Idempotência — CRÍTICO:
+   Antes de processar, verificar se este asaasPaymentId
+   já foi processado com status CONFIRMED ou RECEIVED.
+   Se já foi processado: retornar 200 sem fazer nada.
+   Isso evita pedidos duplicados se o ASAAS enviar o
+   mesmo evento mais de uma vez.
+
+5. Ao receber PAYMENT_CONFIRMED ou PAYMENT_RECEIVED:
+   a) Buscar o pagamento local pelo asaasPaymentId
+      via storage.getAsaasPaymentByAsaasId(asaasPaymentId)
+      Se não encontrar: retornar 200 (pagamento não é deste sistema)
+
+   b) Atualizar o status do pagamento local:
+      storage.updateAsaasPayment(localPayment.id, {
+        status: event === 'PAYMENT_RECEIVED' ? 'RECEIVED' : 'CONFIRMED',
+        paymentDate: payment.paymentDate || new Date().toISOString().split('T')[0]
+      })
+
+   c) Buscar o pedido associado ao pagamento:
+      Procurar na tabela orders pelo asaas_payment_id
+      Se encontrar: atualizar status para 'confirmed'
+      Se não encontrar: criar um novo pedido com:
+        - orderId: 'ZK-' + Date.now() + '-' + Math.random().toString(36).substr(2,4).toUpperCase()
+        - status: 'confirmed'
+        - userId: localPayment.userId (pode ser null)
+        - total: localPayment.value
+        - customer: buscar nome do cliente via asaas_customers
+        - date: data atual
+
+   d) Disparar e-mail de confirmação para o cliente:
+      Buscar e-mail do cliente via asaas_customers
+      Chamar sendOrderConfirmationEmail() — ver TAREFA 3
+
+   e) Retornar HTTP 200 com { received: true }
+
+6. Em caso de erro interno: retornar 200 mesmo assim
+   (o ASAAS requer 200 para não pausar a fila)
+   Logar o erro detalhado no console para debugging
+
+---
+
+TAREFA 3 — Criar função sendOrderConfirmationEmail
+No arquivo server/email.ts, adicionar nova função:
+
+sendOrderConfirmationEmail(params: {
+  customerEmail: string,
+  customerName: string,
+  orderId: string,
+  items: any,
+  total: number,
+  billingType: string,
+  paymentDate: string
+})
+
+O e-mail deve conter:
+- Assunto: "Pedido confirmado — ZK REZK #{orderId}"
+- Saudação com nome do cliente
+- Número do pedido em destaque
+- Valor total formatado em R$
+- Forma de pagamento (PIX ou Cartão de Crédito)
+- Mensagem: "Seu pedido foi recebido e está sendo preparado
+  com todo cuidado pelo nosso atelier."
+- Link para contato: contato@zkrezk.com
+- Design consistente com os outros e-mails do projeto
+  (usar o mesmo template HTML já existente)
+
+---
+
+TAREFA 4 — Adicionar método no storage
+No arquivo server/storage.ts, adicionar:
+
+Método: getAsaasPaymentByAsaasId(asaasPaymentId: string)
+  - Busca na tabela asaas_payments pelo campo asaas_payment_id
+  - Retorna o registro completo ou null se não encontrar
+
+Método: getOrderByPaymentId(asaasPaymentId: string)  
+  - Busca na tabela orders pelo campo relacionado ao pagamento
+  - Retorna o pedido ou null
+
+---
+
+TAREFA 5 — Configurar o Webhook no ASAAS Sandbox
+Após implementar o endpoint, adicionar instruções comentadas
+no topo do endpoint sobre como configurar no painel ASAAS:
+
+URL do webhook: https://www.zkrezk.com/api/webhooks/asaas
+Eventos a configurar: PAYMENT_CONFIRMED, PAYMENT_RECEIVED
+Token: valor da env var ASAAS_WEBHOOK_TOKEN
+
+---
+
+TAREFA 6 — Adicionar ASAAS_WEBHOOK_TOKEN nos Secrets
+Instruir (apenas no comentário do código, não executar):
+  No painel do Replit → Secrets → adicionar:
+  Key: ASAAS_WEBHOOK_TOKEN
+  Value: gerar uma string aleatória segura (ex: uuid v4)
+  Este mesmo valor deve ser configurado no painel ASAAS
+
+---
+
+REGRAS:
+1. O endpoint /api/webhooks/asaas deve estar FORA do
+   middleware de autenticação (requireAuth) — o ASAAS
+   não tem sessão, autentica via header token
+2. NÃO usar express.json() antes deste endpoint se isso
+   interferir com o body raw — testar que o body chega
+   corretamente
+3. Sempre retornar HTTP 200 para o ASAAS, mesmo em erro
+4. Implementar idempotência obrigatoriamente
+5. Logar todos os eventos recebidos no console para debug
+6. Criar checkpoint ao final

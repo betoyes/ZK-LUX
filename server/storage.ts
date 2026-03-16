@@ -87,6 +87,7 @@ export interface IStorage {
   getOrders(): Promise<Order[]>;
   getOrderById(id: number): Promise<Order | undefined>;
   getOrdersByCustomerId(customerId: number): Promise<Order[]>;
+  getOrderByPaymentId(paymentId: number): Promise<Order | undefined>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: number, order: Partial<InsertOrder>): Promise<Order | undefined>;
   deleteOrder(id: number): Promise<void>;
@@ -134,6 +135,7 @@ export interface IStorage {
   // Asaas Customers
   getAsaasCustomerByEmail(email: string): Promise<AsaasCustomer | undefined>;
   getAsaasCustomerByAsaasId(asaasId: string): Promise<AsaasCustomer | undefined>;
+  getAsaasCustomerById(id: number): Promise<AsaasCustomer | undefined>;
   createAsaasCustomer(customer: InsertAsaasCustomer): Promise<AsaasCustomer>;
 
   // Asaas Payments
@@ -488,6 +490,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(orders).where(eq(orders.customerId, customerId));
   }
 
+  async getOrderByPaymentId(paymentId: number): Promise<Order | undefined> {
+    const [order] = await db.select().from(orders).where(eq(orders.paymentId, paymentId));
+    return order || undefined;
+  }
+
   async createOrder(order: InsertOrder): Promise<Order> {
     const [newOrder] = await db.insert(orders).values(order).returning();
     return newOrder;
@@ -741,6 +748,11 @@ export class DatabaseStorage implements IStorage {
 
   async getAsaasCustomerByAsaasId(asaasId: string): Promise<AsaasCustomer | undefined> {
     const [customer] = await db.select().from(asaasCustomers).where(eq(asaasCustomers.asaasId, asaasId));
+    return customer || undefined;
+  }
+
+  async getAsaasCustomerById(id: number): Promise<AsaasCustomer | undefined> {
+    const [customer] = await db.select().from(asaasCustomers).where(eq(asaasCustomers.id, id));
     return customer || undefined;
   }
 

@@ -223,6 +223,88 @@ export async function sendAdminNotification(
   }
 }
 
+export async function sendOrderConfirmationEmail(params: {
+  customerEmail: string;
+  customerName: string;
+  orderId: string;
+  items: any;
+  total: number;
+  billingType: string;
+  paymentDate: string;
+}) {
+  const { customerEmail, customerName, orderId, items, total, billingType, paymentDate } = params;
+  
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const totalFormatted = (total / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const paymentMethod = billingType === 'PIX' ? 'PIX' : 'Cartão de Crédito';
+    const formattedDate = paymentDate || new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    
+    const result = await client.emails.send({
+      from: fromEmail || 'ZK REZK <noreply@zkrezk.com>',
+      to: [customerEmail],
+      subject: `Pedido confirmado — ZK REZK #${orderId}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 40px 20px; }
+              .container { max-width: 500px; margin: 0 auto; background: #fff; border: 1px solid #e0e0e0; }
+              .header { background: #000; color: #fff; padding: 30px; text-align: center; }
+              .header h1 { margin: 0; font-size: 24px; letter-spacing: 4px; font-weight: 400; }
+              .content { padding: 40px 30px; text-align: center; }
+              .content h2 { font-size: 20px; font-weight: 400; margin-bottom: 20px; }
+              .content p { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 15px; }
+              .order-id { font-size: 22px; font-weight: 600; color: #000; letter-spacing: 2px; margin: 20px 0; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; }
+              .details { text-align: left; padding: 20px; background: #fafafa; margin: 20px 0; }
+              .details p { margin: 8px 0; color: #333; font-size: 14px; }
+              .details strong { color: #000; }
+              .message { background: #f0f7f0; padding: 20px; margin: 20px 0; border-left: 3px solid #22c55e; text-align: left; }
+              .message p { color: #333; font-size: 14px; line-height: 1.6; margin: 0; }
+              .contact { margin-top: 25px; font-size: 13px; color: #999; }
+              .contact a { color: #000; text-decoration: none; font-weight: 500; }
+              .footer { padding: 20px 30px; text-align: center; border-top: 1px solid #e0e0e0; }
+              .footer p { color: #999; font-size: 11px; margin: 0; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>ZK REZK</h1>
+              </div>
+              <div class="content">
+                <h2>Pedido Confirmado</h2>
+                <p>Olá, ${customerName}!</p>
+                <div class="order-id">#${orderId}</div>
+                <div class="details">
+                  <p><strong>Valor total:</strong> ${totalFormatted}</p>
+                  <p><strong>Forma de pagamento:</strong> ${paymentMethod}</p>
+                  <p><strong>Data do pagamento:</strong> ${formattedDate}</p>
+                </div>
+                <div class="message">
+                  <p>Seu pedido foi recebido e está sendo preparado com todo cuidado pelo nosso atelier.</p>
+                </div>
+                <p class="contact">Dúvidas? Entre em contato: <a href="mailto:contato@zkrezk.com">contato@zkrezk.com</a></p>
+              </div>
+              <div class="footer">
+                <p>&copy; 2026 ZK REZK. Todos os direitos reservados.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+    });
+    
+    console.log(`[Email] Order confirmation sent to ${customerEmail} for order ${orderId}`, result);
+    return result;
+  } catch (error) {
+    console.error(`[Email] Failed to send order confirmation to ${customerEmail}:`, error);
+  }
+}
+
 export async function sendPasswordResetEmail(to: string, token: string, baseUrl: string) {
   const { client, fromEmail } = await getResendClient();
   const resetUrl = `${baseUrl}/reset-password?token=${token}`;

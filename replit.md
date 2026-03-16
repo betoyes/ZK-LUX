@@ -119,6 +119,7 @@ Preferred communication style: Simple, everyday language.
 - **Silent Profile Save**: Checkout data silently saved to profile when advancing to payment step
 - **Order Creation**: Payment routes create order records linked to userId with generated orderId (ZK-{timestamp}-{random})
 - **Admin Order Notifications**: Admin notified via email on new orders
+- **ASAAS Webhook**: POST /api/webhooks/asaas processes PAYMENT_CONFIRMED and PAYMENT_RECEIVED events with idempotency, updates payment/order status, sends customer confirmation email. Auth via `asaas-access-token` header matched against `ASAAS_WEBHOOK_TOKEN` env var (optional in dev). Always returns HTTP 200 to ASAAS.
 
 **LGPD Compliance**
 - **Consent Management**: Required consent for Terms and Privacy Policy, optional for marketing
