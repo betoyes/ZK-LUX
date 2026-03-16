@@ -235,13 +235,15 @@ export type Customer = typeof customers.$inferSelect;
 // Orders table
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
-  orderId: text("order_id").notNull().unique(), // ORD-001 format
+  orderId: text("order_id").notNull().unique(), // ZK-{timestamp}-{random} format
   customerId: integer("customer_id").references(() => customers.id),
-  customer: text("customer").notNull(), // Customer name for display
+  userId: integer("user_id").references(() => users.id),
+  customer: text("customer").notNull(),
   date: text("date").notNull(),
-  status: text("status").notNull(), // 'Processando' | 'Enviado' | 'Entregue' | 'Cancelado'
+  status: text("status").notNull(), // 'pending' | 'Processando' | 'Enviado' | 'Entregue' | 'Cancelado'
   total: integer("total").notNull(),
   items: integer("items").notNull(),
+  paymentId: integer("payment_id"),
 });
 
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true });
@@ -335,6 +337,7 @@ export const asaasPayments = pgTable("asaas_payments", {
   id: serial("id").primaryKey(),
   asaasCustomerId: integer("asaas_customer_id").references(() => asaasCustomers.id),
   orderId: integer("order_id").references(() => orders.id),
+  userId: integer("user_id").references(() => users.id),
   asaasPaymentId: text("asaas_payment_id").notNull().unique(),
   billingType: text("billing_type").notNull(), // 'PIX' | 'CREDIT_CARD' | 'BOLETO'
   value: integer("value").notNull(), // in cents
@@ -362,6 +365,13 @@ export const createPixPaymentSchema = z.object({
   phone: z.string().optional(),
   value: z.number().positive("Valor deve ser positivo"),
   description: z.string().optional(),
+  cartItems: z.array(z.object({
+    productId: z.number(),
+    quantity: z.number(),
+    name: z.string(),
+    price: z.number(),
+    stoneType: z.string().optional(),
+  })).optional(),
 });
 export type CreatePixPayment = z.infer<typeof createPixPaymentSchema>;
 
@@ -383,6 +393,13 @@ export const createCreditCardPaymentSchema = z.object({
     ccv: z.string().min(3, "CVC inválido"),
   }),
   installmentCount: z.number().min(1).max(12).optional(),
-  installmentValue: z.number().positive().optional(), // Valor de cada parcela em centavos (com juros)
+  installmentValue: z.number().positive().optional(),
+  cartItems: z.array(z.object({
+    productId: z.number(),
+    quantity: z.number(),
+    name: z.string(),
+    price: z.number(),
+    stoneType: z.string().optional(),
+  })).optional(),
 });
 export type CreateCreditCardPayment = z.infer<typeof createCreditCardPaymentSchema>;

@@ -1,11 +1,17 @@
-import { Link } from 'wouter';
+import { useState } from 'react';
+import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { X, Minus, Plus, ArrowRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { X, Minus, Plus, ArrowRight, LogIn, UserPlus } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
+import { useAuth } from '@/context/AuthContext';
 import { getStonePrice, getStoneLabel } from '@/components/StoneSelector';
 
 export default function Cart() {
   const { products, collections, cart, updateCartQuantity, removeFromCart, clearCart } = useProducts();
+  const { isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const enrichedCartItems = cart.map(item => {
     const product = products.find(p => p.id === item.productId);
@@ -25,6 +31,14 @@ export default function Cart() {
   }[];
 
   const subtotal = enrichedCartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+
+  const handleCheckout = () => {
+    if (isAuthenticated) {
+      setLocation('/checkout');
+    } else {
+      setShowAuthModal(true);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background pt-32 pb-24">
@@ -118,11 +132,13 @@ export default function Cart() {
                 </div>
               </div>
 
-              <Link href="/checkout">
-                <Button className="w-full rounded-none h-12 bg-black text-white hover:bg-primary uppercase tracking-widest flex items-center justify-center gap-2" data-testid="checkout-btn">
-                  Finalizar Compra <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
+              <Button 
+                onClick={handleCheckout}
+                className="w-full rounded-none h-12 bg-black text-white hover:bg-primary uppercase tracking-widest flex items-center justify-center gap-2" 
+                data-testid="checkout-btn"
+              >
+                Finalizar Compra <ArrowRight className="h-4 w-4" />
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -136,6 +152,54 @@ export default function Cart() {
           </div>
         )}
       </div>
+
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="auth-modal-overlay">
+          <div className="bg-white w-full max-w-md mx-4 p-0 border border-border shadow-2xl" data-testid="auth-modal">
+            <div className="bg-black text-white px-8 py-6">
+              <h2 className="font-display text-2xl font-bold tracking-tight">Acesse sua conta</h2>
+              <p className="font-mono text-xs uppercase tracking-widest mt-1 text-white/70">
+                Para uma experiência personalizada
+              </p>
+            </div>
+
+            <div className="p-8 space-y-4">
+              <p className="text-sm text-muted-foreground mb-6">
+                Entre na sua conta ou crie uma nova para finalizar sua compra com segurança, acompanhar seus pedidos e salvar seus dados para compras futuras.
+              </p>
+
+              <Link href="/login">
+                <Button
+                  className="w-full rounded-none h-12 bg-black text-white hover:bg-primary uppercase tracking-widest font-mono text-xs flex items-center justify-center gap-2"
+                  data-testid="auth-modal-login"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Entrar na Conta
+                </Button>
+              </Link>
+
+              <Link href="/register">
+                <Button
+                  variant="outline"
+                  className="w-full rounded-none h-12 border-black text-black hover:bg-black hover:text-white uppercase tracking-widest font-mono text-xs flex items-center justify-center gap-2"
+                  data-testid="auth-modal-register"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Criar Conta
+                </Button>
+              </Link>
+
+              <button
+                onClick={() => setShowAuthModal(false)}
+                className="w-full text-center font-mono text-xs text-muted-foreground hover:text-foreground uppercase tracking-widest mt-4 py-2"
+                data-testid="auth-modal-close"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

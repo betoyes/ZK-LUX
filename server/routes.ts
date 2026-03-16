@@ -24,6 +24,7 @@ import {
   loginUserSchema,
   createPixPaymentSchema,
   createCreditCardPaymentSchema,
+  updateUserProfileSchema,
   type User,
 } from "@shared/schema";
 import {
@@ -47,7 +48,7 @@ const loginLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3,
+  max: process.env.NODE_ENV === 'development' ? 50 : 3,
   message: {
     message: "Muitas tentativas de cadastro. Tente novamente em 1 hora.",
   },
@@ -888,6 +889,61 @@ export async function registerRoutes(
       res.status(401).json({ message: "Não autenticado" });
     }
   });
+
+  // ============ USER PROFILE ROUTES ============
+
+  app.get(
+    "/api/users/profile",
+    requireAuth,
+    async (req: any, res: Response, next: NextFunction) => {
+      try {
+        const profile = await storage.getUserProfile(req.user.id);
+        if (!profile) {
+          return res.status(404).json({ message: "Perfil não encontrado" });
+        }
+        res.set("Cache-Control", "private, no-cache");
+        res.json(profile);
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  app.patch(
+    "/api/users/profile",
+    requireAuth,
+    csrfProtection,
+    async (req: any, res: Response, next: NextFunction) => {
+      const clientIp = getClientIp(req);
+      const userAgent = getUserAgent(req);
+
+      try {
+        const validationResult = updateUserProfileSchema.safeParse(req.body);
+        if (!validationResult.success) {
+          const errors = validationResult.error.errors.map((e) => e.message);
+          return res.status(400).json({ message: "Erro de validação", errors });
+        }
+
+        const updatedProfile = await storage.updateUserProfile(
+          req.user.id,
+          validationResult.data,
+        );
+
+        if (!updatedProfile) {
+          return res.status(404).json({ message: "Perfil não encontrado" });
+        }
+
+        const changedFields = Object.keys(validationResult.data);
+        await logAuditEvent(req.user.id, "profile_update", clientIp, userAgent, {
+          changedFields,
+        });
+
+        res.json(updatedProfile);
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
 
   // ============ ADMIN MANAGEMENT ROUTES ============
   const PRIMARY_ADMIN_EMAIL =
@@ -2458,9 +2514,11 @@ Sitemap: ${baseUrl}/sitemap.xml
         const qrCode = await asaas.getPixQrCode(payment.id);
 
         // Save payment locally
+        const userId = (req as any).user?.id || null;
         const localPayment = await storage.createAsaasPayment({
           asaasCustomerId: localCustomer.id,
           asaasPaymentId: payment.id,
+          userId,
           billingType: "PIX",
           value: Math.round(data.value),
           status: payment.status,
@@ -2470,6 +2528,35 @@ Sitemap: ${baseUrl}/sitemap.xml
           pixQrCodePayload: qrCode.payload,
           createdAt: new Date().toISOString(),
         });
+
+        // Create order record
+        const randomDigits = Math.floor(1000 + Math.random() * 9000);
+        const orderId = `ZK-${Date.now()}-${randomDigits}`;
+        const cartItems = data.cartItems || [];
+        const totalItems = cartItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+        try {
+          await storage.createOrder({
+            orderId,
+            userId,
+            customer: data.name,
+            date: new Date().toISOString(),
+            status: "pending",
+            total: Math.round(data.value),
+            items: totalItems || 1,
+            paymentId: localPayment.id,
+          });
+        } catch (orderErr) {
+          console.error("Failed to create order record:", orderErr);
+        }
+
+        // Send admin notification
+        sendAdminNotification("order", {
+          email: data.email,
+          name: data.name,
+          total: Math.round(data.value),
+          orderId,
+          items: totalItems || 1,
+        }).catch((err) => console.error("Failed to send order notification:", err));
 
         res.json({
           paymentId: localPayment.id,
@@ -2543,9 +2630,11 @@ Sitemap: ${baseUrl}/sitemap.xml
         );
 
         // Save payment locally
+        const ccUserId = (req as any).user?.id || null;
         const localPayment = await storage.createAsaasPayment({
           asaasCustomerId: localCustomer.id,
           asaasPaymentId: payment.id,
+          userId: ccUserId,
           billingType: "CREDIT_CARD",
           value: Math.round(data.value),
           status: payment.status,
@@ -2556,6 +2645,35 @@ Sitemap: ${baseUrl}/sitemap.xml
           creditCardBrand: payment.creditCard?.creditCardBrand,
           createdAt: new Date().toISOString(),
         });
+
+        // Create order record
+        const ccRandomDigits = Math.floor(1000 + Math.random() * 9000);
+        const ccOrderId = `ZK-${Date.now()}-${ccRandomDigits}`;
+        const ccCartItems = data.cartItems || [];
+        const ccTotalItems = ccCartItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+        try {
+          await storage.createOrder({
+            orderId: ccOrderId,
+            userId: ccUserId,
+            customer: data.name,
+            date: new Date().toISOString(),
+            status: "pending",
+            total: Math.round(data.value),
+            items: ccTotalItems || 1,
+            paymentId: localPayment.id,
+          });
+        } catch (orderErr) {
+          console.error("Failed to create order record:", orderErr);
+        }
+
+        // Send admin notification
+        sendAdminNotification("order", {
+          email: data.email,
+          name: data.name,
+          total: Math.round(data.value),
+          orderId: ccOrderId,
+          items: ccTotalItems || 1,
+        }).catch((err) => console.error("Failed to send order notification:", err));
 
         res.json({
           paymentId: localPayment.id,

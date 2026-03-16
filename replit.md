@@ -81,18 +81,20 @@ Preferred communication style: Simple, everyday language.
 ### Data Schema
 
 **Core Entities**
-- **Users**: Admin/customer roles, email verification
+- **Users**: Admin/customer roles, email verification, profile fields (fullName, cpfCnpj, phone, address fields)
 - **Categories, Collections, Products**: Core e-commerce entities
 - **Journal Posts**: Editorial content
-- **Subscribers, Customers, Orders**: User and transactional data
+- **Subscribers, Customers, Orders**: User and transactional data (orders linked to userId and paymentId)
 - **Branding**: Configurable site content
 - **EmailVerificationTokens, PasswordResetTokens**: For secure authentication flows
+- **AsaasCustomers, AsaasPayments**: Payment gateway records (payments linked to userId)
 
 **Schema Design Decisions**
 - Relational structure with foreign keys
 - Boolean flags for product features
 - Denormalized branding table
 - Serial IDs for primary keys
+- User profile fields use camelCase JS properties mapping to snake_case DB columns (Drizzle convention)
 
 ### Security & LGPD Compliance
 
@@ -108,6 +110,15 @@ Preferred communication style: Simple, everyday language.
 - **Password Reset Token Expiry**: 3 hours
 - **Email Verification Token Expiry**: 48 hours
 - **Admin Email Failure Alerts**: Admin notified via email when verification emails fail to send
+
+**User Profile & Purchase Flow**
+- **Profile Management**: GET/PATCH /api/users/profile endpoints for viewing and updating user data
+- **Account Page**: "Meus Dados" section with editable profile form (personal info + address)
+- **Cart Auth Gate**: Modal prompts unauthenticated users to login/register before checkout
+- **Checkout Pre-fill**: Profile data auto-fills checkout form for authenticated users
+- **Silent Profile Save**: Checkout data silently saved to profile when advancing to payment step
+- **Order Creation**: Payment routes create order records linked to userId with generated orderId (ZK-{timestamp}-{random})
+- **Admin Order Notifications**: Admin notified via email on new orders
 
 **LGPD Compliance**
 - **Consent Management**: Required consent for Terms and Privacy Policy, optional for marketing

@@ -12,6 +12,8 @@ import { Link } from 'wouter';
 import { maskCep, isValidCep, calculateShipping, formatCurrency, type ShippingResult } from '@/lib/cep';
 import { WhatsAppLink } from '@/components/WhatsAppButton';
 import { useProducts } from '@/context/ProductContext';
+import { useAuth } from '@/context/AuthContext';
+import { getCsrfToken } from '@/lib/csrf';
 
 const customerSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -136,6 +138,40 @@ export default function Checkout() {
   const [installments, setInstallments] = useState(1);
   const { toast } = useToast();
   const { cart, products, clearCart } = useProducts();
+  const { isAuthenticated } = useAuth();
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && !profileLoaded) {
+      fetch('/api/users/profile', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(profile => {
+          if (profile) {
+            const nameParts = (profile.full_name || '').trim().split(/\s+/);
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            const formValues: Partial<CustomerData> = {};
+            if (profile.username) formValues.email = profile.username;
+            if (firstName) formValues.firstName = firstName;
+            if (lastName) formValues.lastName = lastName;
+            if (profile.cpfCnpj) formValues.cpfCnpj = profile.cpfCnpj;
+            if (profile.phone) formValues.phone = profile.phone;
+            if (profile.addressStreet) formValues.address = profile.addressStreet;
+            if (profile.addressNumber) formValues.addressNumber = profile.addressNumber;
+            if (profile.addressComplement) formValues.addressComplement = profile.addressComplement;
+            if (profile.addressCity) formValues.city = profile.addressCity;
+            if (profile.addressZip) formValues.zip = profile.addressZip;
+
+            Object.entries(formValues).forEach(([key, value]) => {
+              if (value) customerForm.setValue(key as keyof CustomerData, value, { shouldValidate: false });
+            });
+          }
+          setProfileLoaded(true);
+        })
+        .catch(() => setProfileLoaded(true));
+    }
+  }, [isAuthenticated, profileLoaded]);
 
   const cartItems = useMemo(() => {
     return cart.map(item => {
@@ -247,6 +283,29 @@ export default function Checkout() {
 
     setCustomerData(values);
     setStep('payment');
+
+    if (isAuthenticated) {
+      const profileData = {
+        fullName: `${values.firstName} ${values.lastName}`.trim(),
+        cpfCnpj: values.cpfCnpj,
+        phone: values.phone,
+        addressStreet: values.address,
+        addressNumber: values.addressNumber,
+        addressComplement: values.addressComplement || '',
+        addressCity: values.city,
+        addressZip: values.zip,
+      };
+      const csrfToken = getCsrfToken();
+      fetch('/api/users/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+        },
+        body: JSON.stringify(profileData),
+        credentials: 'include',
+      }).catch(() => {});
+    }
   }
 
   async function processPixPayment() {
@@ -257,6 +316,7 @@ export default function Checkout() {
       const response = await fetch('/api/payments/pix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           email: customerData.email,
           name: `${customerData.firstName} ${customerData.lastName}`,
@@ -264,6 +324,13 @@ export default function Checkout() {
           phone: customerData.phone.replace(/\D/g, ''),
           value: subtotal + (shipping?.price || 0),
           description: 'Compra na joalheria',
+          cartItems: cartItems.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            name: item.name,
+            price: item.price,
+            stoneType: item.stoneType,
+          })),
         }),
       });
 
@@ -302,6 +369,7 @@ export default function Checkout() {
       const response = await fetch('/api/payments/credit-card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           email: customerData.email,
           name: `${customerData.firstName} ${customerData.lastName}`,
@@ -323,6 +391,13 @@ export default function Checkout() {
           installmentValue: installments > 1 
             ? calculateInstallmentWithInterest(subtotal + shipping.price, installments).installmentValue 
             : undefined,
+          cartItems: cartItems.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            name: item.name,
+            price: item.price,
+            stoneType: item.stoneType,
+          })),
         }),
       });
 

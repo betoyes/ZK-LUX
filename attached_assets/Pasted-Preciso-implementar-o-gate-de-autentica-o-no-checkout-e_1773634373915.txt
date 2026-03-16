@@ -1,0 +1,119 @@
+Preciso implementar o gate de autenticação no checkout e o 
+pré-preenchimento com dados do usuário logado.
+Este é o Prompt 2 de 4. NÃO altere nada além do descrito aqui.
+
+---
+
+CONTEXTO:
+- Stack: TypeScript, React, Express, Drizzle ORM, PostgreSQL
+- Autenticação: Passport.js + sessões (já implementado)
+- Hook de autenticação: useAuth() ou similar já existe no projeto
+- Carrinho: gerenciado em localStorage
+- Os novos campos de perfil já existem na tabela users
+  (full_name, cpf_cnpj, phone, address_street, address_number,
+  address_complement, address_neighborhood, address_city,
+  address_state, address_zip) — adicionados no Prompt 1
+- Endpoints de perfil já existem:
+  GET /api/users/profile
+  PATCH /api/users/profile
+
+---
+
+TAREFA 1 — Gate de autenticação no carrinho
+No componente da página /cart (procurar em client/src/pages/):
+
+Ao clicar no botão "Finalizar compra" ou "Ir para o checkout":
+  - Verificar se o usuário está autenticado via useAuth()
+  - Se NÃO estiver logado: exibir um modal elegante de 
+    autenticação (não redirecionar para /login — manter no carrinho)
+  - Se estiver logado: ir direto para /checkout normalmente
+
+O modal de autenticação deve ter:
+  - Título: "Para finalizar sua compra"
+  - Duas abas: "Entrar" e "Criar conta"
+  - Aba "Entrar": formulário com e-mail e senha + botão "Entrar"
+  - Aba "Criar conta": formulário com e-mail, senha e aceite 
+    de termos + botão "Criar conta e continuar"
+  - Após login ou cadastro bem-sucedido: fechar o modal e 
+    redirecionar automaticamente para /checkout
+  - O carrinho (localStorage) deve ser preservado integralmente
+    durante todo o processo
+  - Estilo visual consistente com o restante do site
+  - Botão X para fechar o modal (volta ao carrinho sem autenticar)
+
+---
+
+TAREFA 2 — Pré-preenchimento do checkout com dados do usuário
+No componente da página /checkout (procurar em client/src/pages/):
+
+Ao carregar a página /checkout, se o usuário estiver logado:
+  - Buscar dados via GET /api/users/profile
+  - Pré-preencher automaticamente os campos da etapa 1:
+    * E-mail → campo email
+    * full_name → campo nome completo
+    * cpf_cnpj → campo CPF/CNPJ
+    * phone → campo telefone
+    * address_zip → campo CEP
+    * address_street → campo logradouro
+    * address_number → campo número
+    * address_complement → campo complemento
+    * address_neighborhood → campo bairro
+    * address_city → campo cidade
+    * address_state → campo estado
+  - Campos pré-preenchidos devem ser editáveis 
+    (o usuário pode corrigir antes de confirmar)
+  - Se um campo estiver vazio no perfil, deixar em branco 
+    normalmente para o usuário preencher
+
+---
+
+TAREFA 3 — Salvar dados na conta após checkout
+Após o usuário confirmar os dados na etapa 1 do checkout 
+e avançar para a etapa de pagamento:
+  - Chamar PATCH /api/users/profile com os dados preenchidos
+  - Salvar: full_name, cpf_cnpj, phone, address_street,
+    address_number, address_complement, address_neighborhood,
+    address_city, address_state, address_zip
+  - Fazer isso de forma silenciosa (sem bloquear o fluxo)
+  - Se a chamada falhar, apenas logar o erro — não impedir 
+    o usuário de continuar para o pagamento
+  - Na próxima compra, esses dados já estarão pré-preenchidos
+
+---
+
+TAREFA 4 — Vincular userId ao criar pagamento
+Nos endpoints de pagamento em server/routes.ts:
+  POST /api/payments/pix
+  POST /api/payments/credit-card
+
+Ao criar o registro em asaas_payments, incluir o userId 
+do usuário logado:
+  - Se req.user existir: salvar userId no campo da tabela
+  - Se não existir (guest): salvar null
+  
+Verificar se a tabela asaas_payments já tem campo userId.
+Se não tiver, adicionar ao schema e rodar db:push.
+Após salvar o pagamento, criar também um registro na tabela
+orders com:
+  - orderId: gerar no formato ZK-{timestamp}-{random 4 digits}
+  - userId: do usuário logado
+  - status: 'pending'
+  - total: valor do pagamento
+  - customer: nome do cliente
+  - items: itens do carrinho (receber no body do request)
+  - date: data atual
+  - paymentId: id do asaas_payment criado
+
+---
+
+REGRAS:
+1. NÃO alterar rotas de autenticação existentes
+2. NÃO alterar a lógica de pagamento ASAAS existente
+3. O carrinho em localStorage NUNCA deve ser apagado durante 
+   o processo de autenticação no gate
+4. O gate deve funcionar tanto para login quanto para cadastro
+5. Após cada tarefa que modifique o banco, rodar db:push
+   (o drizzle.config.ts já tem tablesFilter: ["!session"])
+6. Testar no Preview: carrinho → clicar finalizar → modal aparece
+   → fazer login → ir ao checkout com dados pré-preenchidos
+7. Criar checkpoint ao final

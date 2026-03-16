@@ -2,7 +2,7 @@ import {
   users, categories, collections, products, journalPosts, subscribers,
   customers, orders, branding, emailVerificationTokens, passwordResetTokens, auditLogs, dataExportRequests,
   asaasCustomers, asaasPayments,
-  type User, type InsertUser,
+  type User, type InsertUser, type UpdateUserProfile,
   type Category, type InsertCategory,
   type Collection, type InsertCollection,
   type Product, type InsertProduct,
@@ -28,6 +28,8 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   getAdminUsers(): Promise<User[]>;
   deleteUser(id: number): Promise<void>;
+  getUserProfile(userId: number): Promise<Omit<User, 'password'> | undefined>;
+  updateUserProfile(userId: number, data: Partial<UpdateUserProfile>): Promise<Omit<User, 'password'> | undefined>;
 
   // Categories
   getCategories(): Promise<Category[]>;
@@ -168,6 +170,20 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(id: number): Promise<void> {
     await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getUserProfile(userId: number): Promise<Omit<User, 'password'> | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return undefined;
+    const { password, ...profile } = user;
+    return profile;
+  }
+
+  async updateUserProfile(userId: number, data: Partial<UpdateUserProfile>): Promise<Omit<User, 'password'> | undefined> {
+    const [updated] = await db.update(users).set(data).where(eq(users.id, userId)).returning();
+    if (!updated) return undefined;
+    const { password, ...profile } = updated;
+    return profile;
   }
 
   // Categories
