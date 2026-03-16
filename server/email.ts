@@ -104,8 +104,8 @@ export async function sendVerificationEmail(to: string, token: string, baseUrl: 
 
 // Notification email for admin when new leads/customers register
 export async function sendAdminNotification(
-  type: 'newsletter' | 'lead' | 'customer' | 'order',
-  data: { name?: string; email?: string; total?: number; orderId?: string; items?: number }
+  type: 'newsletter' | 'lead' | 'customer' | 'order' | 'email_failure',
+  data: { name?: string; email?: string; total?: number; orderId?: string; items?: number; reason?: string; error?: string }
 ) {
   const adminEmail = process.env.ADMIN_NOTIFY_EMAIL || 
     (process.env.NODE_ENV === "production" 
@@ -146,6 +146,15 @@ export async function sendAdminNotification(
           <p><strong>Tipo:</strong> Cliente</p>
         `;
         break;
+      case 'email_failure':
+        subject = '⚠️ Falha no Envio de Email - ZK REZK';
+        heading = 'Falha no envio de email';
+        details = `
+          <p><strong>Email destinatário:</strong> ${data.email || 'N/A'}</p>
+          <p><strong>Motivo:</strong> ${data.reason || 'Não especificado'}</p>
+          <p><strong>Erro:</strong> ${data.error || 'Não disponível'}</p>
+        `;
+        break;
       case 'order':
         subject = '💰 Nova Venda Realizada - ZK REZK';
         heading = 'Nova venda no site!';
@@ -178,7 +187,7 @@ export async function sendAdminNotification(
               .content h2 { font-size: 20px; font-weight: 400; margin-bottom: 20px; text-align: center; }
               .content p { color: #333; font-size: 14px; line-height: 1.8; margin-bottom: 10px; }
               .content strong { color: #000; }
-              .badge { display: inline-block; padding: 8px 16px; background: ${type === 'order' ? '#22c55e' : type === 'customer' ? '#3b82f6' : '#f59e0b'}; color: #fff; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
+              .badge { display: inline-block; padding: 8px 16px; background: ${type === 'order' ? '#22c55e' : type === 'customer' ? '#3b82f6' : type === 'email_failure' ? '#ef4444' : '#f59e0b'}; color: #fff; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
               .footer { padding: 20px 30px; text-align: center; border-top: 1px solid #e0e0e0; }
               .footer p { color: #999; font-size: 11px; margin: 0; }
               .timestamp { text-align: center; color: #999; font-size: 11px; margin-top: 20px; }
@@ -191,7 +200,7 @@ export async function sendAdminNotification(
               </div>
               <div class="content">
                 <div style="text-align: center;">
-                  <span class="badge">${type === 'order' ? 'VENDA' : type === 'customer' ? 'CLIENTE' : type === 'lead' ? 'LEAD' : 'NEWSLETTER'}</span>
+                  <span class="badge">${type === 'order' ? 'VENDA' : type === 'customer' ? 'CLIENTE' : type === 'lead' ? 'LEAD' : type === 'email_failure' ? 'ALERTA' : 'NEWSLETTER'}</span>
                 </div>
                 <h2>${heading}</h2>
                 ${details}
@@ -251,7 +260,7 @@ export async function sendPasswordResetEmail(to: string, token: string, baseUrl:
               <p>Recebemos uma solicitação para redefinir a senha da sua conta. Clique no botão abaixo para criar uma nova senha.</p>
               <a href="${resetUrl}" class="button">Redefinir Senha</a>
               <div class="warning">
-                Este link expira em 1 hora. Se você não solicitou a redefinição de senha, ignore este email.
+                Este link expira em 3 horas. Se você não solicitou a redefinição de senha, ignore este email.
               </div>
             </div>
             <div class="footer">

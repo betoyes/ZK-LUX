@@ -1,0 +1,81 @@
+Preciso que você melhore o fluxo de autenticação e cadastro do projeto ZK REZK. 
+Este é um e-commerce de joias de luxo em produção. Faça as melhorias abaixo 
+de forma incremental, uma de cada vez, criando um checkpoint após cada melhoria 
+confirmada. NÃO altere nada além do que está descrito.
+
+---
+
+CONTEXTO DO PROJETO:
+- Stack: TypeScript, Node.js, Express, React, Drizzle ORM, PostgreSQL (Neon)
+- Autenticação: Passport.js LocalStrategy + sessões PostgreSQL
+- E-mail: Resend (já configurado em server/email.ts)
+- Arquivos principais: server/routes.ts, server/storage.ts, server/email.ts
+
+---
+
+MELHORIA 1 — Invalidar sessões após reset de senha (CRÍTICO)
+Arquivo: server/routes.ts
+Localizar: a rota POST /api/auth/reset-password
+Após a linha que chama storage.updateUserPassword(), adicionar código que 
+deleta todas as sessões ativas do usuário no banco de dados PostgreSQL usando 
+a tabela "session" que já existe (usada pelo connect-pg-simple).
+A query deve ser:
+  DELETE FROM session WHERE sess::jsonb -> 'passport' -> 'user' = to_jsonb($1::int)
+Parâmetro: tokenData.userId
+Fazer isso antes de retornar o JSON de sucesso.
+Validar: após reset, o usuário deve ser deslogado de todos os dispositivos.
+
+---
+
+MELHORIA 2 — bcrypt com custo uniforme (custo 12 em todos os pontos)
+Arquivo: server/routes.ts
+Localizar: TODAS as chamadas bcrypt.hash() no arquivo
+Substituir custo 10 por 12 em: rota de registro (/api/auth/register) e 
+rota de reset (/api/auth/reset-password).
+A rota /api/auth/change-password já usa 12 — manter como está.
+Validar: buscar no arquivo por "bcrypt.hash" e confirmar que todos usam 10 → 12.
+
+---
+
+MELHORIA 3 — Aumentar expiração do token de reset de senha para 3 horas
+Arquivo: server/routes.ts
+Localizar: rota POST /api/auth/forgot-password
+Encontrar a linha: Date.now() + 60 * 60 * 1000
+Substituir por: Date.now() + 3 * 60 * 60 * 1000
+Validar: token de reset deve expirar em 3 horas, não 1 hora.
+
+---
+
+MELHORIA 4 — Notificação ao admin quando envio de e-mail de verificação falha
+Arquivo: server/routes.ts
+Localizar: rota POST /api/auth/register, o bloco try/catch do sendVerificationEmail
+Atualmente o catch apenas faz console.error.
+Adicionar dentro do catch, após o console.error, uma chamada para 
+sendAdminNotification com tipo 'email_failure' e dados: 
+{ email, reason: 'verification_email_failed', error: emailErr.message }
+IMPORTANTE: antes de implementar, verificar se sendAdminNotification em 
+server/email.ts já aceita o tipo 'email_failure'. Se não aceitar, adicionar 
+esse tipo de forma que ele envie um e-mail simples de alerta ao PRIMARY_ADMIN_EMAIL.
+Validar: simular falha de envio e confirmar que o admin recebe notificação.
+
+---
+
+MELHORIA 5 — Aumentar expiração do token de verificação de e-mail para 48 horas
+Arquivo: server/routes.ts
+Localizar: TODAS as ocorrências de: Date.now() + 24 * 60 * 60 * 1000
+nas rotas de /api/auth/register e /api/auth/resend-verification
+Substituir por: Date.now() + 48 * 60 * 60 * 1000
+Validar: token de verificação de e-mail deve expirar em 48 horas, não 24.
+
+---
+
+REGRAS PARA EXECUÇÃO:
+1. Execute uma melhoria de cada vez
+2. Após cada melhoria, rode os testes existentes (npm test ou playwright se disponível)
+3. Crie um checkpoint após cada melhoria validada
+4. Se qualquer melhoria quebrar um teste existente, reverta apenas essa melhoria 
+   e me informe — não prossiga para a próxima
+5. Não altere: lógica de negócio, rate limiters, CSRF, Passport.js, schema do banco
+6. Não instale novas dependências — use apenas o que já está no projeto
+7. Ao finalizar todas as 5 melhorias, execute: git add -A && git commit -m 
+   "security: session invalidation, bcrypt cost 12, token expiry improvements"

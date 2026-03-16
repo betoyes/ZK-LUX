@@ -103,6 +103,11 @@ Preferred communication style: Simple, everyday language.
 - **Input Validation**: Zod schemas with Portuguese error messages
 - **Password Strength**: Minimum 8 characters with complexity
 - **Secure Token Hashing**: SHA256 hashes stored for tokens
+- **bcrypt Cost Factor**: Uniform cost 12 across all password hashing
+- **Session Invalidation**: All active sessions are deleted after password reset (fail-closed)
+- **Password Reset Token Expiry**: 3 hours
+- **Email Verification Token Expiry**: 48 hours
+- **Admin Email Failure Alerts**: Admin notified via email when verification emails fail to send
 
 **LGPD Compliance**
 - **Consent Management**: Required consent for Terms and Privacy Policy, optional for marketing

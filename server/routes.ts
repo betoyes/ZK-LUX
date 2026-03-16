@@ -306,7 +306,7 @@ export async function registerRoutes(
           return res.status(400).json({ message: "Este email já está em uso" });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, 12);
 
         const user = await storage.createUser({
           username: email,
@@ -347,8 +347,8 @@ export async function registerRoutes(
         const verificationToken = crypto.randomBytes(32).toString("hex");
         const tokenHash = hashToken(verificationToken);
         const expiresAt = new Date(
-          Date.now() + 24 * 60 * 60 * 1000,
-        ).toISOString(); // 24 hours
+          Date.now() + 48 * 60 * 60 * 1000,
+        ).toISOString(); // 48 hours
 
         await storage.createEmailVerificationToken({
           userId: user.id,
@@ -360,8 +360,15 @@ export async function registerRoutes(
         const baseUrl = `${req.protocol}://${req.get("host")}`;
         try {
           await sendVerificationEmail(email, verificationToken, baseUrl);
-        } catch (emailErr) {
+        } catch (emailErr: any) {
           console.error("Failed to send verification email:", emailErr);
+          sendAdminNotification('email_failure', {
+            email,
+            reason: 'verification_email_failed',
+            error: emailErr?.message || 'Unknown error',
+          }).catch((notifErr) =>
+            console.error("Failed to send admin notification for email failure:", notifErr),
+          );
         }
 
         res.status(201).json({
@@ -476,8 +483,8 @@ export async function registerRoutes(
         const verificationToken = crypto.randomBytes(32).toString("hex");
         const tokenHash = hashToken(verificationToken);
         const expiresAt = new Date(
-          Date.now() + 24 * 60 * 60 * 1000,
-        ).toISOString(); // 24 hours
+          Date.now() + 48 * 60 * 60 * 1000,
+        ).toISOString(); // 48 hours
 
         await storage.createEmailVerificationToken({
           userId: user.id,
@@ -557,7 +564,7 @@ export async function registerRoutes(
         // Create new reset token - store only hash, send raw token via email
         const resetToken = crypto.randomBytes(32).toString("hex");
         const tokenHash = hashToken(resetToken);
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+        const expiresAt = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(); // 3 hours
 
         await storage.createPasswordResetToken({
           userId: user.id,
@@ -660,8 +667,14 @@ export async function registerRoutes(
         }
 
         // Update password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, 12);
         await storage.updateUserPassword(tokenData.userId, hashedPassword);
+
+        // Invalidate all active sessions for this user (security: force re-login on all devices)
+        await pool.query(
+          `DELETE FROM session WHERE sess::jsonb -> 'passport' -> 'user' = to_jsonb($1::int)`,
+          [tokenData.userId]
+        );
 
         // Invalidate all password reset tokens for this user (marks them as used)
         await storage.invalidatePasswordResetTokensByUserId(tokenData.userId);
@@ -923,7 +936,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Este email já está em uso" });
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(password, 12);
       const user = await storage.createUser({
         username,
         password: hashedPassword,
