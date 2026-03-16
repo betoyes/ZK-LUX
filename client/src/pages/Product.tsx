@@ -18,7 +18,7 @@ import {
   DialogTrigger,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, ArrowRight, Ruler, Gem, LogIn } from 'lucide-react';
+import { ArrowLeft, Plus, ArrowRight, Ruler, Gem, LogIn, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import StoneSelector, { hasStoneVariations, getStonePrice, getStoneOptions, getStoneLabel } from '@/components/StoneSelector';
 
