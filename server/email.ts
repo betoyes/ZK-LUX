@@ -223,85 +223,188 @@ export async function sendAdminNotification(
   }
 }
 
-export async function sendOrderConfirmationEmail(params: {
-  customerEmail: string;
-  customerName: string;
-  orderId: string;
-  items: any;
-  total: number;
-  billingType: string;
-  paymentDate: string;
-}) {
-  const { customerEmail, customerName, orderId, items, total, billingType, paymentDate } = params;
-  
-  try {
-    const { client, fromEmail } = await getResendClient();
-    
-    const totalFormatted = (total / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const paymentMethod = billingType === 'PIX' ? 'PIX' : 'Cartão de Crédito';
-    const formattedDate = paymentDate || new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    
-    const result = await client.emails.send({
-      from: fromEmail || 'ZK REZK <noreply@zkrezk.com>',
-      to: [customerEmail],
-      subject: `Pedido confirmado — ZK REZK #${orderId}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <style>
-              body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 40px 20px; }
-              .container { max-width: 500px; margin: 0 auto; background: #fff; border: 1px solid #e0e0e0; }
-              .header { background: #000; color: #fff; padding: 30px; text-align: center; }
-              .header h1 { margin: 0; font-size: 24px; letter-spacing: 4px; font-weight: 400; }
-              .content { padding: 40px 30px; text-align: center; }
-              .content h2 { font-size: 20px; font-weight: 400; margin-bottom: 20px; }
-              .content p { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 15px; }
-              .order-id { font-size: 22px; font-weight: 600; color: #000; letter-spacing: 2px; margin: 20px 0; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; }
-              .details { text-align: left; padding: 20px; background: #fafafa; margin: 20px 0; }
-              .details p { margin: 8px 0; color: #333; font-size: 14px; }
-              .details strong { color: #000; }
-              .message { background: #f0f7f0; padding: 20px; margin: 20px 0; border-left: 3px solid #22c55e; text-align: left; }
-              .message p { color: #333; font-size: 14px; line-height: 1.6; margin: 0; }
-              .contact { margin-top: 25px; font-size: 13px; color: #999; }
-              .contact a { color: #000; text-decoration: none; font-weight: 500; }
-              .footer { padding: 20px 30px; text-align: center; border-top: 1px solid #e0e0e0; }
-              .footer p { color: #999; font-size: 11px; margin: 0; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>ZK REZK</h1>
-              </div>
-              <div class="content">
-                <h2>Pedido Confirmado</h2>
-                <p>Olá, ${customerName}!</p>
-                <div class="order-id">#${orderId}</div>
-                <div class="details">
-                  <p><strong>Valor total:</strong> ${totalFormatted}</p>
-                  <p><strong>Forma de pagamento:</strong> ${paymentMethod}</p>
-                  <p><strong>Data do pagamento:</strong> ${formattedDate}</p>
-                </div>
-                <div class="message">
-                  <p>Seu pedido foi recebido e está sendo preparado com todo cuidado pelo nosso atelier.</p>
-                </div>
-                <p class="contact">Dúvidas? Entre em contato: <a href="mailto:contato@zkrezk.com">contato@zkrezk.com</a></p>
-              </div>
-              <div class="footer">
-                <p>&copy; 2026 ZK REZK. Todos os direitos reservados.</p>
-              </div>
-            </div>
-          </body>
-        </html>
-      `
-    });
-    
-    console.log(`[Email] Order confirmation sent to ${customerEmail} for order ${orderId}`, result);
-    return result;
-  } catch (error) {
-    console.error(`[Email] Failed to send order confirmation to ${customerEmail}:`, error);
+  export async function sendOrderConfirmationEmail(params: {
+    customerEmail: string;
+    customerName: string;
+    orderId: string;
+    items: any;
+    total: number;
+    billingType: string;
+    paymentDate: string;
+  }) {
+    const { customerEmail, customerName, orderId, items, total, billingType, paymentDate } = params;
+
+    try {
+      const { client, fromEmail } = await getResendClient();
+
+      const totalFormatted = (total / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const paymentMethod = billingType === 'PIX' ? 'PIX' : 'Cartão de Crédito';
+      const formattedDate = paymentDate || new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+      const itemsHtml = Array.isArray(items) && items.length > 0
+        ? items.map((item: any) => `
+            <tr>
+              <td style="padding: 14px 0; border-bottom: 1px solid #e8e0d5; font-size: 14px; color: #2c2416; letter-spacing: 0.3px;">
+                ${item.name || item.productName || 'Produto'}
+              </td>
+              <td style="padding: 14px 0; border-bottom: 1px solid #e8e0d5; font-size: 14px; color: #2c2416; text-align: center;">
+                ${item.quantity || 1}
+              </td>
+              <td style="padding: 14px 0; border-bottom: 1px solid #e8e0d5; font-size: 14px; color: #8b6f3e; text-align: right; font-weight: 500;">
+                ${item.price ? (item.price / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
+              </td>
+            </tr>
+          `).join('')
+        : `<tr><td colspan="3" style="padding: 14px 0; font-size: 14px; color: #888; text-align: center;">Detalhes do pedido disponíveis na sua conta.</td></tr>`;
+
+      const result = await client.emails.send({
+        from: fromEmail || 'ZK REZK <noreply@zkrezk.com>',
+        to: [customerEmail],
+        subject: `Pedido confirmado — ZK REZK #${orderId}`,
+        html: `<!DOCTYPE html>
+  <html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pedido Confirmado — ZK REZK</title>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #f7f3ee; font-family: Georgia, 'Times New Roman', serif;">
+
+    <!-- Wrapper -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f7f3ee; padding: 48px 20px;">
+      <tr>
+        <td align="center">
+          <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px;">
+
+            <!-- Header: Logo + Linha dourada -->
+            <tr>
+              <td align="center" style="padding-bottom: 36px;">
+                <div style="width: 48px; height: 1px; background: #c9a96e; display: inline-block; vertical-align: middle; margin-right: 16px;"></div>
+                <span style="font-size: 22px; letter-spacing: 6px; color: #1a1208; font-weight: 400; text-transform: uppercase; vertical-align: middle;">ZK REZK</span>
+                <div style="width: 48px; height: 1px; background: #c9a96e; display: inline-block; vertical-align: middle; margin-left: 16px;"></div>
+              </td>
+            </tr>
+
+            <!-- Card principal -->
+            <tr>
+              <td style="background-color: #ffffff; border: 1px solid #e8e0d5;">
+
+                <!-- Faixa dourada topo -->
+                <div style="height: 3px; background: linear-gradient(90deg, #c9a96e 0%, #e8d5a3 50%, #c9a96e 100%);"></div>
+
+                <!-- Conteúdo -->
+                <table width="100%" cellpadding="0" cellspacing="0">
+
+                  <!-- Ícone de confirmação -->
+                  <tr>
+                    <td align="center" style="padding: 44px 40px 8px;">
+                      <div style="width: 56px; height: 56px; border: 1.5px solid #c9a96e; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 24px;">
+                        <span style="font-size: 22px; line-height: 56px; display: block; text-align: center;">✓</span>
+                      </div>
+                      <p style="margin: 0 0 6px; font-size: 11px; letter-spacing: 4px; color: #c9a96e; text-transform: uppercase; font-family: 'Helvetica Neue', Arial, sans-serif;">Pedido Confirmado</p>
+                      <h1 style="margin: 0 0 20px; font-size: 26px; font-weight: 400; color: #1a1208; letter-spacing: 1px;">Obrigada, ${customerName}.</h1>
+                      <p style="margin: 0; font-size: 15px; color: #6b5a3e; line-height: 1.7; max-width: 380px; font-family: Georgia, serif;">
+                        Seu pedido foi recebido e está sendo preparado com todo o cuidado do nosso atelier.
+                      </p>
+                    </td>
+                  </tr>
+
+                  <!-- Número do pedido -->
+                  <tr>
+                    <td style="padding: 32px 40px 0;">
+                      <div style="border: 1px solid #e8e0d5; background: #fdf9f4; padding: 16px 20px; text-align: center;">
+                        <p style="margin: 0 0 4px; font-size: 10px; letter-spacing: 3px; color: #b09060; text-transform: uppercase; font-family: 'Helvetica Neue', Arial, sans-serif;">Número do Pedido</p>
+                        <p style="margin: 0; font-size: 18px; letter-spacing: 3px; color: #1a1208; font-family: 'Helvetica Neue', Arial, sans-serif; font-weight: 500;">#${orderId}</p>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Divisor -->
+                  <tr>
+                    <td style="padding: 32px 40px 0;">
+                      <p style="margin: 0 0 16px; font-size: 10px; letter-spacing: 3px; color: #c9a96e; text-transform: uppercase; font-family: 'Helvetica Neue', Arial, sans-serif;">Resumo do Pedido</p>
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <th style="font-size: 10px; letter-spacing: 2px; color: #b09060; text-transform: uppercase; font-family: 'Helvetica Neue', Arial, sans-serif; font-weight: 400; text-align: left; padding-bottom: 12px; border-bottom: 1px solid #e8e0d5;">Produto</th>
+                          <th style="font-size: 10px; letter-spacing: 2px; color: #b09060; text-transform: uppercase; font-family: 'Helvetica Neue', Arial, sans-serif; font-weight: 400; text-align: center; padding-bottom: 12px; border-bottom: 1px solid #e8e0d5;">Qtd</th>
+                          <th style="font-size: 10px; letter-spacing: 2px; color: #b09060; text-transform: uppercase; font-family: 'Helvetica Neue', Arial, sans-serif; font-weight: 400; text-align: right; padding-bottom: 12px; border-bottom: 1px solid #e8e0d5;">Valor</th>
+                        </tr>
+                        ${itemsHtml}
+                      </table>
+                    </td>
+                  </tr>
+
+                  <!-- Total -->
+                  <tr>
+                    <td style="padding: 0 40px 32px;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="padding-top: 16px; font-size: 13px; color: #6b5a3e; font-family: 'Helvetica Neue', Arial, sans-serif; letter-spacing: 0.5px;">Total</td>
+                          <td style="padding-top: 16px; font-size: 20px; color: #1a1208; text-align: right; font-family: 'Helvetica Neue', Arial, sans-serif; font-weight: 500; letter-spacing: 1px;">${totalFormatted}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding-top: 8px; font-size: 12px; color: #b09060; font-family: 'Helvetica Neue', Arial, sans-serif;">Pagamento</td>
+                          <td style="padding-top: 8px; font-size: 12px; color: #b09060; text-align: right; font-family: 'Helvetica Neue', Arial, sans-serif;">${paymentMethod} · ${formattedDate}</td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                  <!-- Mensagem artesanal -->
+                  <tr>
+                    <td style="padding: 0 40px 40px;">
+                      <div style="border-left: 2px solid #c9a96e; padding: 16px 20px; background: #fdf9f4;">
+                        <p style="margin: 0; font-size: 14px; color: #6b5a3e; line-height: 1.8; font-style: italic;">
+                          "Cada peça ZK REZK é criada à mão com materiais selecionados. Seu pedido receberá atenção individual antes de chegar até você."
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+
+                </table>
+
+                <!-- Faixa dourada base -->
+                <div style="height: 1px; background: #e8e0d5; margin: 0 40px;"></div>
+
+                <!-- Contato -->
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center" style="padding: 28px 40px;">
+                      <p style="margin: 0 0 8px; font-size: 12px; color: #b09060; letter-spacing: 0.5px; font-family: 'Helvetica Neue', Arial, sans-serif;">
+                        Dúvidas sobre seu pedido?
+                      </p>
+                      <a href="mailto:contato@zkrezk.com" style="font-size: 13px; color: #8b6f3e; text-decoration: none; letter-spacing: 1px; font-family: 'Helvetica Neue', Arial, sans-serif; border-bottom: 1px solid #c9a96e; padding-bottom: 2px;">
+                        contato@zkrezk.com
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td align="center" style="padding: 32px 0 0;">
+                <p style="margin: 0 0 6px; font-size: 10px; letter-spacing: 3px; color: #b09060; text-transform: uppercase; font-family: 'Helvetica Neue', Arial, sans-serif;">ZK REZK</p>
+                <p style="margin: 0; font-size: 11px; color: #c4b49a; font-family: 'Helvetica Neue', Arial, sans-serif;">© 2026 ZK REZK. Todos os direitos reservados.</p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+
+  </body>
+  </html>`,
+      });
+
+      console.log(`[Email] Order confirmation sent to ${customerEmail} for order ${orderId}`, result);
+      return result;
+    } catch (error) {
+      console.error(`[Email] Failed to send order confirmation to ${customerEmail}:`, error);
+    }
   }
 }
 
